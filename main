@@ -1,0 +1,71 @@
+#include <Arduino.h>
+#include <HX711_ADC.h>
+#include <TM1637Display.h>
+
+// ── Pin definitions 
+#define HX711_DAT   7
+#define HX711_CLK   8
+#define TM_CLK      2
+#define TM_DIO      3
+
+// ── Calibration constants 
+#define CAL_FACTOR    736.75f   // determined experimentally
+#define CARD_WEIGHT     1.467f   // grams per card 
+#define EMPTY_BOX      4.71f   // grams of empty card box
+
+// ── Objects 
+HX711_ADC   loadCell(HX711_DAT, HX711_CLK);
+TM1637Display display(TM_CLK, TM_DIO);
+
+// ── Setup 
+void setup() {
+  Serial.begin(57600);
+  Serial.println(F("Playing Card Pack Counter"));
+  Serial.println(F("Initializing load cell..."));
+
+  display.setBrightness(7);
+  display.showNumberDec(0);
+
+  loadCell.begin();
+  loadCell.start(2000);           // tare for 2 seconds at startup
+  loadCell.setCalFactor(CAL_FACTOR);
+
+  Serial.println(F("Ready. Send 't' to retare."));
+}
+
+// ── Loop 
+void loop() {
+  // Handle retare command from Serial Monitor
+  if (Serial.available()) {
+    char cmd = Serial.read();
+    if (cmd == 't') {
+      loadCell.tareNoDelay();
+      Serial.println(F("Tare done."));
+    }
+  }
+
+  // Update load cell
+  if (loadCell.update()) {
+    float weight = loadCell.getData();
+
+    // Calculate card count
+    float netWeight = weight - EMPTY_BOX;
+    int cardCount = 0;
+    if (netWeight > 0) {
+      cardCount = (int)(netWeight / CARD_WEIGHT + 0.5f);  
+    }
+
+    // Clamp to valid range
+    if (cardCount < 0)  cardCount = 0;
+    if (cardCount > 54) cardCount = 54;
+
+    // Show on display
+    display.showNumberDec(cardCount);
+
+    // Print to Serial Monitor for debugging
+    Serial.print(F("Weight: "));
+    Serial.print(weight, 2);
+    Serial.print(F(" g  |  Cards: "));
+    Serial.println(cardCount);
+  }
+}
