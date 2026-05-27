@@ -1,0 +1,8 @@
+[env:uno]
+platform = atmelavr
+board = uno
+framework = arduino
+monitor_speed = 57600
+lib_deps =
+    HX711_ADC
+    TM1637
