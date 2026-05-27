@@ -1,70 +1,72 @@
+// Librarii necesare pentru a folosi Arduino, HX711 si display-ul TM1637
 #include <Arduino.h>
 #include <HX711_ADC.h>
 #include <TM1637Display.h>
 
-// ── Pin definitions 
-#define HX711_DAT   7
-#define HX711_CLK   8
-#define TM_CLK      2
-#define TM_DIO      3
+//  Definirea pinilor
+#define HX711_DAT   7   // pinul de date de la HX711 la Arduino
+#define HX711_CLK   8   // pinul de clock de la HX711 la Arduino
+#define TM_CLK      2   // pinul de clock al display-ului TM1637
+#define TM_DIO      3   // pinul de date al display-ului TM1637
 
-// ── Calibration constants 
-#define CAL_FACTOR    736.75f   // determined experimentally
-#define CARD_WEIGHT     1.467f   // grams per card 
-#define EMPTY_BOX      4.71f   // grams of empty card box
+//  Constante de calibrare 
+#define CAL_FACTOR    736.75f   // factor determinat experimental, converteste valoarea bruta a HX711 in grame
+#define CARD_WEIGHT     1.467f  // greutatea unei singure carti in grame, masurata experimental
+#define EMPTY_BOX       4.71f   // greutatea cutiei goale in grame, masurata experimental
 
-// ── Objects 
-HX711_ADC   loadCell(HX711_DAT, HX711_CLK);
-TM1637Display display(TM_CLK, TM_DIO);
+//  Obiectele principale 
+HX711_ADC   loadCell(HX711_DAT, HX711_CLK);  // initializam load cell-ul cu pinii definiti mai sus
+TM1637Display display(TM_CLK, TM_DIO);        // initializam display-ul cu pinii definiti mai sus
 
-// ── Setup 
+//  Setup - ruleaza o singura data la pornire 
 void setup() {
-  Serial.begin(57600);
-  Serial.println(F("Playing Card Pack Counter"));
-  Serial.println(F("Initializing load cell..."));
+  Serial.begin(57600);                              // pornim comunicarea seriala la 57600 baud
+  Serial.println(F("Playing Card Pack Counter"));   // mesaj de pornire in Serial Monitor
+  Serial.println(F("Initializing load cell..."));   // anuntam ca initializam load cell-ul
 
-  display.setBrightness(7);
-  display.showNumberDec(0);
+  display.setBrightness(7);   // luminozitate maxima pe display (0-7)
+  display.showNumberDec(0);   // afisam 0 pe display pana cand avem o citire valida
 
-  loadCell.begin();
-  loadCell.start(2000);           // tare for 2 seconds at startup
-  loadCell.setCalFactor(CAL_FACTOR);
+  loadCell.begin();                      // pornim comunicarea cu HX711
+  loadCell.start(2000);                  // facem tara automata timp de 2 secunde la pornire
+  loadCell.setCalFactor(CAL_FACTOR);     // aplicam factorul de calibrare
 
-  Serial.println(F("Ready. Send 't' to retare."));
+  Serial.println(F("Ready. Send 't' to retare."));  // sistemul e gata, trimite 't' pentru retara
 }
 
-// ── Loop 
+//  Loop - ruleaza continuu
 void loop() {
-  // Handle retare command from Serial Monitor
+
+  // Verificam daca utilizatorul a trimis comanda 't' in Serial Monitor pentru retara
   if (Serial.available()) {
-    char cmd = Serial.read();
+    char cmd = Serial.read();   // citim caracterul trimis
     if (cmd == 't') {
-      loadCell.tareNoDelay();
+      loadCell.tareNoDelay();          // facem retara fara sa blocam restul codului
       Serial.println(F("Tare done."));
     }
   }
 
-  // Update load cell
+  // Citim o noua valoare de la load cell (update() returneaza true cand e o citire noua disponibila)
   if (loadCell.update()) {
-    float weight = loadCell.getData();
+    float weight = loadCell.getData();   // luam greutatea in grame
 
-    // Calculate card count
-    float netWeight = weight - EMPTY_BOX;
+    // Calculam numarul de carti: scadem cutia goala si impartim la greutatea unei carti
+    float netWeight = weight - EMPTY_BOX;   // greutatea neta = total - cutie goala
     int cardCount = 0;
     if (netWeight > 0) {
-      cardCount = (int)(netWeight / CARD_WEIGHT + 0.5f);  
+      cardCount = (int)(netWeight / CARD_WEIGHT + 0.5f);  // impartim si rotunjim la cel mai apropiat intreg
     }
 
-    // Clamp to valid range
+    // Ne asiguram ca rezultatul e intre 0 si 54 (un pachet standard are max 54 de carti)
     if (cardCount < 0)  cardCount = 0;
     if (cardCount > 54) cardCount = 54;
 
-    // Show on display
+    // Afisam numarul de carti pe display
     display.showNumberDec(cardCount);
 
-    // Print to Serial Monitor for debugging
+    // Printam greutatea si numarul de carti in Serial Monitor pentru debug
     Serial.print(F("Weight: "));
-    Serial.print(weight, 2);
+    Serial.print(weight, 2);          // greutatea cu 2 zecimale
     Serial.print(F(" g  |  Cards: "));
     Serial.println(cardCount);
   }
