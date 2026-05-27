@@ -1,4 +1,4 @@
-# Playing Card Pack Counter
+# Deck Check
 
 | Author | Popa Robert Alexandru |
 |--------|-----------------|
